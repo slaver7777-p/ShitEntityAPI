@@ -46,6 +46,7 @@ public final class VirtualEntityCore extends JavaPlugin {
     @Override
     public void onDisable() {
         tracker.stop();
+        tracker.getEntities().forEach(entity -> tracker.unregister(entity));
         PacketEvents.getAPI().terminate();
         cmdWrapper.close();
     }

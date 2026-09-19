@@ -131,18 +131,18 @@ public final class VirtualEntityTracker {
             final User[] users = new User[count];
 
             for (int i = 0; i < count; i++) {
-                Player p = players.get(i);
-                org.bukkit.Location l = p.getLocation();
-                px[i] = l.getX();
-                pz[i] = l.getZ();
+                Player player = players.get(i);
+                org.bukkit.Location location = player.getLocation();
+                px[i] = location.getX();
+                pz[i] = location.getZ();
 
-                long k = key(p.getUniqueId());
-                User u = userCache.get(k);
-                if (u == null) {
-                    u = PacketEvents.getAPI().getPlayerManager().getUser(p);
-                    if (u != null) userCache.put(k, u);
+                long key = key(player.getUniqueId());
+                User user = userCache.get(key);
+                if (user == null) {
+                    user = PacketEvents.getAPI().getPlayerManager().getUser(player);
+                    if (user != null) userCache.put(key, user);
                 }
-                users[i] = u;
+                users[i] = user;
             }
 
             snapshots.put(UUIDUtil.key(world.getUID()), new WorldSnapshot(px, pz, users, count));

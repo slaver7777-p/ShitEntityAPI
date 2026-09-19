@@ -1,0 +1,12 @@
+name: VirtualEntityCore
+version: '${version}'
+
+main: dev.slava7777.ventity.VirtualEntityCore
+api-version: '26.2'
+load: POSTWORLD
+
+depend:
+  - packetevents
+  - BLib
+
+authors: [ slava7777 ]

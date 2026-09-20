@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/VirtualEntityCore.main.iml" filepath="$PROJECT_DIR$/.idea/modules/VirtualEntityCore.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/api/VirtualEntityCore.api.main.iml" filepath="$PROJECT_DIR$/.idea/modules/api/VirtualEntityCore.api.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/plugin/VirtualEntityCore.plugin.main.iml" filepath="$PROJECT_DIR$/.idea/modules/plugin/VirtualEntityCore.plugin.main.iml" />
     </modules>
   </component>
 </project>

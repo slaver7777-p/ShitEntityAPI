@@ -5,13 +5,13 @@ import com.github.retrooper.packetevents.protocol.player.User;
 import com.github.retrooper.packetevents.protocol.world.Location;
 import dev.slava7777.ventity.entity.VirtualEntity;
 import dev.slava7777.ventity.utils.UUIDUtil;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -29,14 +29,14 @@ public final class VirtualEntityTracker {
 
     private final Long2ObjectMap<VirtualEntity> entities = new Long2ObjectOpenHashMap<>();
     private final CopyOnWriteArrayList<VirtualEntity> entityList = new CopyOnWriteArrayList<>();
+    private final Long2ObjectMap<List<VirtualEntity>> entitiesByWorld = new Long2ObjectOpenHashMap<>();
 
-    private final Long2ObjectMap<WorldSnapshot> snapshots = new Long2ObjectOpenHashMap<>();
     private final Long2ObjectMap<PlayerState> playerStates = new Long2ObjectOpenHashMap<>();
     private final Long2ObjectMap<User> userCache = new Long2ObjectOpenHashMap<>();
 
     private volatile boolean forceRecompute = true;
 
-    private BukkitTask task;
+    private ScheduledTask task;
 
     public VirtualEntityTracker(@NotNull Plugin plugin) {
         this(plugin, DEFAULT_VIEW_DISTANCE, DEFAULT_TICK_PERIOD);
@@ -73,11 +73,14 @@ public final class VirtualEntityTracker {
 
     public void start() {
         if (task != null) return;
-        task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, tickPeriod, tickPeriod);
+        task = Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, _ -> tick(), tickPeriod, tickPeriod);
     }
 
     public void stop() {
-        if (task != null) { task.cancel(); task = null; }
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
     }
 
     public void register(@NotNull VirtualEntity entity) {
@@ -97,24 +100,43 @@ public final class VirtualEntityTracker {
     }
 
     private void tick() {
-        boolean anyPlayerMoved = rebuildSnapshots();
-        boolean globalDirty = anyPlayerMoved || forceRecompute;
-        forceRecompute = false;
+        if (entityList.isEmpty()) return;
 
-        for (VirtualEntity entity : entityList) {
+        groupEntitiesByWorld();
+        if (entitiesByWorld.isEmpty()) return;
+
+        boolean anyPlayerMoved = false;
+
+        for (World world : Bukkit.getWorlds()) {
+            final long worldKey = UUIDUtil.key(world.getUID());
+            final List<VirtualEntity> worldEntities = entitiesByWorld.get(worldKey);
+
+            if (worldEntities == null || worldEntities.isEmpty()) continue;
+
+            final List<Player> players = world.getPlayers();
+
+            if (players.isEmpty()) {
+                tickEntitiesOnly(worldEntities);
+                continue;
+            }
+
+            if (tickWorldWithPlayers(worldEntities, players)) {
+                anyPlayerMoved = true;
+            }
+        }
+
+        if (anyPlayerMoved) {
+            forceRecompute = false;
+        } else if (forceRecompute) {
+            forceRecompute = false;
+        }
+    }
+
+    private void tickEntitiesOnly(@NotNull List<VirtualEntity> worldEntities) {
+        for (VirtualEntity entity : worldEntities) {
             if (entity.isRemoved() || !entity.isActive()) continue;
-
-            UUID worldId = entity.getWorldId();
-            if (worldId == null) continue;
-
-            WorldSnapshot snap = snapshots.get(UUIDUtil.key(worldId));
-            if (snap == null) continue;
-
             try {
-                boolean entityMoved = entity.consumePositionDirty();
-                if (globalDirty || entityMoved) {
-                    updateAutoViewers(entity, snap);
-                }
+                entity.consumePositionDirty();
                 entity.tick();
             } catch (Throwable t) {
                 plugin.getLogger().log(Level.SEVERE,
@@ -123,60 +145,88 @@ public final class VirtualEntityTracker {
         }
     }
 
-    private boolean rebuildSnapshots() {
-        snapshots.clear();
+    private boolean tickWorldWithPlayers(@NotNull List<VirtualEntity> worldEntities,
+                                         @NotNull List<Player> players) {
+        final int count = players.size();
+        final double[] px = new double[count];
+        final double[] pz = new double[count];
+        final User[] users = new User[count];
+
         boolean anyMoved = false;
 
-        for (World world : Bukkit.getWorlds()) {
-            final List<Player> players = world.getPlayers();
-            if (players.isEmpty()) continue;
+        for (int i = 0; i < count; i++) {
+            Player player = players.get(i);
+            org.bukkit.Location location = player.getLocation();
+            px[i] = location.getX();
+            pz[i] = location.getZ();
 
-            final int count = players.size();
-            final double[] px = new double[count];
-            final double[] pz = new double[count];
-            final User[] users = new User[count];
+            long key = UUIDUtil.key(player.getUniqueId());
 
-            for (int i = 0; i < count; i++) {
-                Player player = players.get(i);
-                org.bukkit.Location location = player.getLocation();
-                px[i] = location.getX();
-                pz[i] = location.getZ();
-
-                long key = UUIDUtil.key(player.getUniqueId());
-
-                PlayerState state = playerStates.get(key);
-                if (state == null) {
-                    state = new PlayerState(px[i], pz[i]);
-                    playerStates.put(key, state);
-                    anyMoved = true;
-                } else if (state.lastX != px[i] || state.lastZ != pz[i]) {
-                    state.lastX = px[i];
-                    state.lastZ = pz[i];
-                    anyMoved = true;
-                }
-
-                User user = userCache.get(key);
-                if (user == null) {
-                    user = PacketEvents.getAPI().getPlayerManager().getUser(player);
-                    if (user != null) userCache.put(key, user);
-                }
-                users[i] = user;
+            PlayerState state = playerStates.get(key);
+            if (state == null) {
+                state = new PlayerState(px[i], pz[i]);
+                playerStates.put(key, state);
+                anyMoved = true;
+            } else if (state.lastX != px[i] || state.lastZ != pz[i]) {
+                state.lastX = px[i];
+                state.lastZ = pz[i];
+                anyMoved = true;
             }
 
-            snapshots.put(UUIDUtil.key(world.getUID()), new WorldSnapshot(px, pz, users, count));
+            User user = userCache.get(key);
+            if (user == null) {
+                user = PacketEvents.getAPI().getPlayerManager().getUser(player);
+                if (user != null) userCache.put(key, user);
+            }
+            users[i] = user;
+        }
+
+        final boolean globalDirty = anyMoved || forceRecompute;
+
+        for (VirtualEntity entity : worldEntities) {
+            if (entity.isRemoved() || !entity.isActive()) continue;
+
+            try {
+                boolean entityMoved = entity.consumePositionDirty();
+                if (globalDirty || entityMoved) {
+                    updateAutoViewers(entity, px, pz, users, count);
+                }
+                entity.tick();
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.SEVERE,
+                        "Error ticking virtual entity " + entity.getEntityId(), t);
+            }
         }
 
         return anyMoved;
     }
 
-    private void updateAutoViewers(@NotNull VirtualEntity entity, @NotNull WorldSnapshot snap) {
+    private void groupEntitiesByWorld() {
+        for (var it = entitiesByWorld.values().iterator(); it.hasNext(); ) {
+            it.next().clear();
+        }
+
+        for (VirtualEntity entity : entityList) {
+            if (entity.isRemoved() || !entity.isActive()) continue;
+
+            UUID worldId = entity.getWorldId();
+            if (worldId == null) continue;
+
+            long key = UUIDUtil.key(worldId);
+            List<VirtualEntity> list = entitiesByWorld.get(key);
+            if (list == null) {
+                list = new ArrayList<>();
+                entitiesByWorld.put(key, list);
+            }
+            list.add(entity);
+        }
+    }
+
+    private void updateAutoViewers(@NotNull VirtualEntity entity,
+                                   double[] px, double[] pz,
+                                   User[] users, int count) {
         final Location loc = entity.getRawLocation();
         final double ex = loc.getX(), ez = loc.getZ();
-
-        final double[] px = snap.px();
-        final double[] pz = snap.pz();
-        final User[] users = snap.users();
-        final int count = snap.count();
 
         for (int i = 0; i < count; i++) {
             final User user = users[i];
@@ -196,8 +246,6 @@ public final class VirtualEntityTracker {
     public int size() {
         return entities.size();
     }
-
-    private record WorldSnapshot(double[] px, double[] pz, User[] users, int count) {}
 
     private static final class PlayerState {
         double lastX;

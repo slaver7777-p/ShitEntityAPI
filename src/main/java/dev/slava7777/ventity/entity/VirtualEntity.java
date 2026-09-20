@@ -1,6 +1,7 @@
 package dev.slava7777.ventity.entity;
 
 import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityType;
 import com.github.retrooper.packetevents.protocol.player.User;
 import com.github.retrooper.packetevents.protocol.world.Location;
@@ -14,6 +15,8 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 public class VirtualEntity {
@@ -36,7 +39,9 @@ public class VirtualEntity {
 
     private volatile boolean active;
     private volatile boolean removed;
+    private volatile boolean positionDirty = true;
 
+    private List<EntityData<?>> metadata = new ArrayList<>();
 
     public VirtualEntity(UUID uuid, EntityType entityType) {
         this.uuid = uuid;
@@ -67,6 +72,7 @@ public class VirtualEntity {
         this.bodyYaw = location.getYaw();
         this.headYaw = location.getYaw();
         this.pitch = location.getPitch();
+        this.positionDirty = true;
 
         spawnPacket.invalidate();
 
@@ -124,6 +130,7 @@ public class VirtualEntity {
     public void sendSpawnPackets(@NotNull User user) {
         user.sendPacket(getSpawnPacket());
         user.sendPacket(new WrapperPlayServerEntityHeadLook(entityId, headYaw));
+        user.sendPacket(getMetadataPacket());
     }
 
     public void setRotation(float yaw, float pitch) {
@@ -157,6 +164,7 @@ public class VirtualEntity {
 
     public void setLocation(@NotNull Location newLocation) {
         this.location = newLocation.clone();
+        this.positionDirty = true;
         spawnPacket.invalidate();
 
         if (active && !viewers.isEmpty()) {
@@ -195,12 +203,28 @@ public class VirtualEntity {
         lookAt(target);
     }
 
+    public final @Nullable WrapperPlayServerEntityMetadata getMetadataPacket() {
+        if (metadata.isEmpty()) return null;
+        return new WrapperPlayServerEntityMetadata(getEntityId(), metadata);
+    }
+
+
     public void setOnGround(boolean onGround) {
         this.onGround = onGround;
     }
 
     public boolean isOnGround() {
         return onGround;
+    }
+
+    public boolean consumePositionDirty() {
+        boolean dirty = positionDirty;
+        positionDirty = false;
+        return dirty;
+    }
+
+    public void markPositionDirty() {
+        this.positionDirty = true;
     }
 
     public boolean addViewer(@NotNull Player player) {
@@ -279,6 +303,22 @@ public class VirtualEntity {
 
     public EntityType getEntityType() {
         return entityType;
+    }
+
+    public void setMetadata(List<EntityData<?>> metadata) {
+        this.metadata = metadata;
+    }
+
+    public void addMetadata(EntityData<?> metadata) {
+        this.metadata.add(metadata);
+    }
+
+    public @Nullable EntityData<?> getMetadata(int index) {
+        return metadata.get(index);
+    }
+
+    public List<EntityData<?>> getMetadata() {
+        return metadata;
     }
 
     public UUID getUuid() {

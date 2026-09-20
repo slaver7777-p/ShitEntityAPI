@@ -214,7 +214,7 @@ public interface EquipmentHandler {
 
         final VirtualEntity entity = (VirtualEntity) this;
 
-        final List<Equipment> equipment = new ArrayList<>();
+        final List<Equipment> equipment = new ArrayList<>(EquipmentSlot.values().length);
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             final ItemStack stack = getEquipment(slot);
             if (stack == null || stack.isEmpty()) continue;

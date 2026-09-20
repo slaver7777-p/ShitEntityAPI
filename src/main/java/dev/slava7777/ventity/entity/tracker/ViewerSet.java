@@ -152,7 +152,7 @@ public final class ViewerSet extends AbstractSet<User> {
     public Set<User> snapshot() {
         Set<User> cache = combinedCache;
         if (cache != null) return cache;
-        Set<User> result = Collections.unmodifiableSet(new HashSet<>(users.values()));
+        Set<User> result = Set.copyOf(users.values());
         combinedCache = result;
         return result;
     }

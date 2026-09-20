@@ -15,6 +15,7 @@ import dev.by1337.core.command.bcmd.CommandWrapper;
 import dev.by1337.core.util.text.minimessage.MiniMessage;
 import dev.slava7777.ventity.entity.VirtualEntity;
 import dev.slava7777.ventity.entity.living.VirtualLivingEntity;
+import dev.slava7777.ventity.entity.metadata.Metadata;
 import dev.slava7777.ventity.entity.tracker.VirtualEntityTracker;
 import dev.slava7777.ventity.listener.JoinQuitListener;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
@@ -101,13 +102,24 @@ public final class VirtualEntityCore extends JavaPlugin {
                                     // new EntityData<>(0, EntityDataTypes.BYTE, (byte) 0x20);
 
                                     //тут кароче кастомное имя
-                                    final List<EntityData<?>> metadata = List.of(
+                                    //final List<EntityData<?>> metadata = List.of(
                                             //CUSTOM_NAME
-                                            new EntityData<>(2, EntityDataTypes.OPTIONAL_ADV_COMPONENT, Optional.ofNullable(MiniMessage.deserialize("<gradient:#EC550B:#F53100><bold>nnikitagay</bold></gradient>"))),
+                                    //        new EntityData<>(2, EntityDataTypes.OPTIONAL_ADV_COMPONENT, Optional.ofNullable(MiniMessage.deserialize("<gradient:#EC550B:#F53100><bold>nnikitagay</bold></gradient>"))),
                                             //CUSTOM_NAME_VISIBLE
-                                            new EntityData<>(3, EntityDataTypes.BOOLEAN, true)
+                                    //        new EntityData<>(3, EntityDataTypes.BOOLEAN, true)
 
-                                    );
+                                    //);
+
+                                    final List<EntityData<?>> metadata = List.of(
+                                            Metadata.Display.billboardConstraints((byte) 1),
+                                            Metadata.TextDisplay.textDisplayFlags(Metadata.TextDisplay.FLAG_SEE_THROUGH),
+                                            Metadata.TextDisplay.text(MiniMessage.deserialize("<gradient:#EC550B:#F53100><bold>nn srudio</bold></gradient> <gradient:#EC550B:#F53100>nnikito4ka and slava7777 sdelali opyat govno</gradient>")),
+                                            Metadata.TextDisplay.lineWidth(250),
+                                            //background-color задаётся в aarrggbb формате
+                                            Metadata.TextDisplay.backgroundColor(0xFF16ECF1),
+                                            //прозрачность текста, -1 = 255 (текст непрозрачный)
+                                            Metadata.TextDisplay.textOpacity((byte) 175)
+                                            );
 
                                     while (spawned < total) {
                                         ringIndex++;
@@ -124,9 +136,13 @@ public final class VirtualEntityCore extends JavaPlugin {
                                             Location entityLoc = new Location(
                                                     new Vector3d(x, oy, z), 0f, 0f);
 
-                                            VirtualLivingEntity entity = new VirtualLivingEntity(EntityTypes.ZOMBIE);
-                                            entity.setEquipment(EquipmentSlot.CHEST_PLATE, ItemStack.builder().type(ItemTypes.NETHERITE_CHESTPLATE).component(ComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true).build());
-                                            entity.setEquipment(EquipmentSlot.HELMET, ItemStack.builder().type(ItemTypes.DIAMOND_HELMET).component(ComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true).build());
+                                            //VirtualLivingEntity entity = new VirtualLivingEntity(EntityTypes.ZOMBIE);
+                                            //entity.setEquipment(EquipmentSlot.CHEST_PLATE, ItemStack.builder().type(ItemTypes.NETHERITE_CHESTPLATE).component(ComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true).build());
+                                            //entity.setEquipment(EquipmentSlot.HELMET, ItemStack.builder().type(ItemTypes.DIAMOND_HELMET).component(ComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true).build());
+                                            //entity.setMetadata(metadata);
+                                            //entity.setInstance(worldId, entityLoc);
+
+                                            VirtualEntity entity = new VirtualEntity(EntityTypes.TEXT_DISPLAY);
                                             entity.setMetadata(metadata);
                                             entity.setInstance(worldId, entityLoc);
                                             tracker.register(entity);

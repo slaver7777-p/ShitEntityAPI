@@ -130,7 +130,9 @@ public class VirtualEntity {
     public void sendSpawnPackets(@NotNull User user) {
         user.sendPacket(getSpawnPacket());
         user.sendPacket(new WrapperPlayServerEntityHeadLook(entityId, headYaw));
-        user.sendPacket(getMetadataPacket());
+        WrapperPlayServerEntityMetadata metadataPacket = getMetadataPacket();
+        if (metadataPacket == null) return;
+        user.sendPacket(metadataPacket);
     }
 
     public void setRotation(float yaw, float pitch) {
